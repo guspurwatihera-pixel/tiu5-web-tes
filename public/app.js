@@ -3,5 +3,42 @@ function begin(){const namaInput=document.querySelector('#start input');if(!nama
 function render(){let g=groups[current],html=`<div class="sheet"><h2>Soal ${g.from}–${g.to}</h2><img src="${g.img}" alt="Soal ${g.from}-${g.to}"></div><div class="answers">`;for(let n=g.from;n<=g.to;n++){html+=`<div class="q"><b>${n}.</b>`;for(let x=1;x<=5;x++)html+=`<label><input type="radio" name="q${n}" value="${x}" ${ans[n-1]===x?'checked':''} onchange="ans[${n-1}]=${x};update()"><span>${x}</span></label>`;html+='</div>'}page.innerHTML=html+'</div>';prev.disabled=current===0;next.hidden=current===groups.length-1;submit.hidden=current!==groups.length-1;update();scrollTo(0,0)}
 function update(){let filled=ans.filter(Boolean).length;count.textContent=`${filled}/30 terjawab`;prog.style.width=(filled/30*100)+'%'}
 function move(d){current+=d;render()}
-async function finish(){let missing=ans.map((v,i)=>v?null:i+1).filter(Boolean);if(missing.length&&!confirm(`Masih ada ${missing.length} soal kosong (${missing.join(', ')}). Tetap kirim?`))return;let normalized=ans.map(v=>v||0);let r=await fetch('/api/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.value.trim(),participantId:pid.value.trim(),answers:normalized})});let j=await r.json();if(!r.ok)return alert(j.error||'Gagal mengirim');test.hidden=true;done.hidden=false;done.innerHTML=`<h1>Jawaban berhasil dikirim</h1><p>Terima kasih, <b>${esc(name.value)}</b>. Hasil tes sudah tersimpan dan dapat dilihat oleh admin.</p><p class="muted">Silakan tutup halaman ini.</p>`}
+async function finish(){
+  let missing=ans.map((v,i)=>v?null:i+1).filter(Boolean);
+
+  if(missing.length&&!confirm(`Masih ada ${missing.length} soal kosong (${missing.join(', ')}). Tetap kirim?`))return;
+
+  const inputs=document.querySelectorAll('#start input');
+  const namaInput=inputs[0];
+  const pidInput=inputs[1];
+
+  const namaPeserta=namaInput ? namaInput.value.trim() : '';
+  const nomorPeserta=pidInput ? pidInput.value.trim() : '';
+
+  let normalized=ans.map(v=>v||0);
+
+  let r=await fetch('/api/submit',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      name:namaPeserta,
+      participantId:nomorPeserta,
+      answers:normalized
+    })
+  });
+
+  let j=await r.json();
+
+  if(!r.ok)return alert(j.error||'Gagal mengirim');
+
+  document.getElementById('test').hidden=true;
+
+  const done=document.getElementById('done');
+  done.hidden=false;
+  done.innerHTML=`<h1>Jawaban berhasil dikirim</h1>
+  <p>Terima kasih, <b>${esc(namaPeserta)}</b>. Hasil tes sudah tersimpan dan dapat dilihat oleh admin.</p>
+  <p class="muted">Silakan tutup halaman ini.</p>`;
+}
+
+Lalu:
 function esc(s){return s.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
