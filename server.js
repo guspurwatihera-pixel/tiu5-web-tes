@@ -1,0 +1,17 @@
+const express=require('express'),session=require('express-session'),bcrypt=require('bcryptjs'),fs=require('fs'),path=require('path');
+const app=express(), PORT=process.env.PORT||3000;
+const ADMIN_EMAIL='guspurwatihera@gmail.com'; const DB=path.join(__dirname,'data.json');
+if(!fs.existsSync(DB)) fs.writeFileSync(DB,JSON.stringify({adminHash:null,results:[]},null,2));
+const load=()=>JSON.parse(fs.readFileSync(DB)); const save=d=>fs.writeFileSync(DB,JSON.stringify(d,null,2));
+const KEY=[2,5,4,4,5,4,5,1,5,3,5,4,5,3,2,3,2,3,4,4,3,3,4,4,5,1,2,5,3,5];
+app.use(express.json()); app.use(express.urlencoded({extended:true})); app.use(session({secret:process.env.SESSION_SECRET||'ganti-secret-saat-deploy',resave:false,saveUninitialized:false,cookie:{httpOnly:true,sameSite:'lax'}})); app.use(express.static(path.join(__dirname,'public')));
+const auth=(req,res,next)=>req.session.admin?next():res.status(401).json({error:'Unauthorized'});
+app.get('/api/admin/status',(req,res)=>res.json({email:ADMIN_EMAIL,initialized:!!load().adminHash,loggedIn:!!req.session.admin}));
+app.post('/api/admin/setup',async(req,res)=>{let d=load(); if(d.adminHash)return res.status(409).json({error:'Admin sudah dibuat'}); if(req.body.email!==ADMIN_EMAIL)return res.status(403).json({error:'Email admin tidak sesuai'}); if(!req.body.password||req.body.password.length<8)return res.status(400).json({error:'Password minimal 8 karakter'}); d.adminHash=await bcrypt.hash(req.body.password,12); save(d); req.session.admin=true; res.json({ok:true});});
+app.post('/api/admin/login',async(req,res)=>{let d=load(); if(req.body.email!==ADMIN_EMAIL||!d.adminHash||!(await bcrypt.compare(req.body.password||'',d.adminHash)))return res.status(401).json({error:'Email/password salah'}); req.session.admin=true; res.json({ok:true});});
+app.post('/api/admin/logout',(req,res)=>req.session.destroy(()=>res.json({ok:true})));
+app.get('/api/admin/results',auth,(req,res)=>{let r=load().results.map(x=>({...x,answers:undefined}));res.json(r.reverse());});
+app.get('/api/admin/results/:id',auth,(req,res)=>{let x=load().results.find(r=>r.id===req.params.id); if(!x)return res.status(404).json({error:'Tidak ditemukan'});res.json(x);});
+app.delete('/api/admin/results/:id',auth,(req,res)=>{let d=load();d.results=d.results.filter(r=>r.id!==req.params.id);save(d);res.json({ok:true});});
+app.post('/api/submit',(req,res)=>{let {name,participantId,answers}=req.body;if(!name||!Array.isArray(answers)||answers.length!==30)return res.status(400).json({error:'Data peserta/jawaban belum lengkap'});let correct=answers.map((a,i)=>Number(a)===KEY[i]);let score=correct.filter(Boolean).length;let d=load();let item={id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),name:String(name).slice(0,100),participantId:String(participantId||'').slice(0,60),score,total:30,percent:Math.round(score/30*100),submittedAt:new Date().toISOString(),answers:answers.map(Number),correct};d.results.push(item);save(d);res.json({ok:true,id:item.id,score,total:30,percent:item.percent});});
+app.listen(PORT,()=>console.log('TIU5 CBT berjalan di port '+PORT));
